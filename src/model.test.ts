@@ -14,7 +14,7 @@ describe('resume data', () => {
       { ...sample(), experience: [{}] },
       { ...sample(), paper: 'A3' },
       { ...sample(), summary: 5 },
-      { ...sample(), education: [{ ...sample().education[0], start: '2026-13' }] },
+      { ...sample(), education: [{ ...sample().education[0], start: 7 }] },
     ])
       expect(() => parseResume(x)).toThrow();
   });

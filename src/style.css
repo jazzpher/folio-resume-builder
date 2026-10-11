@@ -698,3 +698,30 @@ footer {
     transition: none !important;
   }
 }
+.error.recovery {
+  flex-direction: column;
+  color: #5c1f1f;
+}
+.error.recovery p {
+  margin: 0;
+}
+.recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.error .recovery-actions button {
+  font-size: 13px;
+  border: 1px solid #deded7;
+  background: white;
+}
+.error .recovery-actions button.primary {
+  background: #234e43;
+  color: white;
+}
+.field-error {
+  color: #ac3535;
+}
+[aria-invalid='true'] {
+  border-color: #ac3535 !important;
+}

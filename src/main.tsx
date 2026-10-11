@@ -6,24 +6,22 @@ import {
   entry,
   filename,
   parseResume,
+  salvageResume,
   sample,
   type Resume,
   type Entry,
 } from './model';
 import { download } from './download';
+import { DateField } from './DateField';
+import { isCanonicalDate } from './dates';
+import { KEY, clearRecovery, loadDraft } from './storage';
 import './style.css';
-const KEY = 'folio-resume-v1';
 const sections = ['Contact', 'Summary', 'Experience', 'Education', 'Skills', 'Certifications'];
-function initial() {
-  try {
-    const saved = localStorage.getItem(KEY);
-    return saved ? parseResume(JSON.parse(saved)) : blank();
-  } catch {
-    return blank();
-  }
-}
 function App() {
-  const [resume, setResume] = useState<Resume>(initial);
+  const [loaded] = useState(loadDraft);
+  const [resume, setResume] = useState<Resume>(loaded.resume);
+  const [recovery, setRecovery] = useState<string | null>(loaded.recovery);
+  const saveBlocked = useRef(loaded.saveBlocked);
   const [active, setActive] = useState('Contact');
   const [view, setView] = useState('edit');
   const [status, setStatus] = useState('Ready to edit');
@@ -35,6 +33,10 @@ function App() {
   useEffect(() => {
     if (first.current) {
       first.current = false;
+      return;
+    }
+    if (saveBlocked.current) {
+      setStatus('Not saved');
       return;
     }
     setStatus('Saving on this browser…');
@@ -93,7 +95,48 @@ function App() {
   ] as const;
   const warnings = resume.experience
     .concat(resume.education)
-    .filter((e) => e.start && e.end && !e.current && e.end < e.start).length;
+    .filter(
+      (e) =>
+        e.start &&
+        e.end &&
+        !e.current &&
+        isCanonicalDate(e.start) &&
+        isCanonicalDate(e.end) &&
+        (e.end.length === 4 ? `${e.end}-12` : e.end) <
+          (e.start.length === 4 ? `${e.start}-01` : e.start),
+    ).length;
+  const restoreRecovery = () => {
+    if (!recovery) return;
+    try {
+      let next: Resume;
+      try {
+        next = parseResume(JSON.parse(recovery));
+      } catch {
+        next = salvageResume(JSON.parse(recovery));
+      }
+      requestReplace(
+        'Restore what we could recover from your saved draft? It replaces the resume on screen. Check every section afterwards.',
+        () => {
+          saveBlocked.current = false;
+          setResume(next);
+          setStatus('Recovered draft restored');
+        },
+      );
+    } catch {
+      setError(
+        'The saved data could not be restored automatically. Download it and keep the file; nothing has been deleted.',
+      );
+    }
+  };
+  const discardRecovery = () =>
+    requestReplace(
+      'Discard the recovered data? Download it first if you might need it. This cannot be undone.',
+      () => {
+        clearRecovery();
+        saveBlocked.current = false;
+        setRecovery(null);
+      },
+    );
   const field = (
     label: string,
     value: string,
@@ -184,13 +227,19 @@ function App() {
               (v) => updateEntry(section, e.id, { organization: v }),
             )}
             {field('Location', e.location, (v) => updateEntry(section, e.id, { location: v }))}
-            {field('Start month', e.start, (v) => updateEntry(section, e.id, { start: v }), {
-              type: 'month',
-            })}
-            {!e.current &&
-              field('End month', e.end, (v) => updateEntry(section, e.id, { end: v }), {
-                type: 'month',
-              })}
+            <DateField
+              label="Start date"
+              value={e.start}
+              onChange={(v) => updateEntry(section, e.id, { start: v })}
+            />
+            {!e.current && (
+              <DateField
+                label="End date"
+                value={e.end}
+                onChange={(v) => updateEntry(section, e.id, { end: v })}
+                onCurrent={() => updateEntry(section, e.id, { current: true, end: '' })}
+              />
+            )}
             <label className="check">
               <input
                 type="checkbox"
@@ -319,6 +368,33 @@ function App() {
             move between devices. Clearing browser data removes saved work.
           </p>
         </div>
+        {recovery && (
+          <div className="error recovery" role="alert">
+            <p>
+              <strong>We couldn't open your saved resume.</strong> Nothing has been deleted: the
+              saved data is kept separately in this browser. Download it to keep a copy, or try to
+              restore it.
+            </p>
+            <div className="recovery-actions">
+              <button
+                onClick={() =>
+                  download(
+                    new Blob([recovery], { type: 'application/json' }),
+                    'Folio-recovered-data.json',
+                  )
+                }
+              >
+                Download recovered data
+              </button>
+              <button className="primary" onClick={restoreRecovery}>
+                Try to restore
+              </button>
+              <button className="danger-text" onClick={discardRecovery}>
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
         {error && (
           <div className="error" role="alert">
             {error}

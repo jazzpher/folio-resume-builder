@@ -1,3 +1,4 @@
+import { formatDate, isCanonicalDate, normalizeDate } from './dates';
 export type Entry = {
   id: string;
   title: string;
@@ -98,6 +99,46 @@ export const sample = (): Resume => ({
     'Google Sheets, Microsoft Excel, Records Management, Data Cleaning, Report Writing, Scheduling',
   certifications: 'Google Project Management Certificate, Coursera, 2023',
 });
+/** Normalise loose dates ("Jan 2024", "2024", "Present") in place. Unrecognised text is kept. */
+export function fixDates(e: Entry): Entry {
+  const start = normalizeDate(e.start);
+  const end = normalizeDate(e.end);
+  e.start = start.current ? e.start.trim() : start.value;
+  e.end = end.value;
+  if (end.current) e.current = true;
+  return e;
+}
+/** Entries whose dates could not be understood (shown as typed). */
+export const badDates = (e: Entry) =>
+  !isCanonicalDate(e.start) || (!e.current && !isCanonicalDate(e.end));
+/**
+ * Best-effort recovery for data that fails parseResume: keeps every string it can find,
+ * never throws for an object. Used by "Try to restore".
+ */
+export function salvageResume(raw: unknown): Resume {
+  if (!raw || typeof raw !== 'object') throw new Error('Nothing recoverable in the saved data.');
+  const r = raw as Record<string, any>;
+  const str = (x: unknown) =>
+    typeof x === 'string' ? x.slice(0, 20000) : typeof x === 'number' ? String(x) : '';
+  const result = blank();
+  const c = r.contact && typeof r.contact === 'object' ? r.contact : {};
+  for (const key of Object.keys(result.contact) as (keyof Resume['contact'])[])
+    result.contact[key] = str(c[key]);
+  for (const key of ['summary', 'skills', 'certifications'] as const) result[key] = str(r[key]);
+  for (const key of ['experience', 'education'] as const) {
+    const list = Array.isArray(r[key]) ? r[key].slice(0, 100) : [];
+    result[key] = list
+      .filter((e: unknown) => e && typeof e === 'object')
+      .map((e: any) => {
+        const out = entry();
+        for (const f of fields) (out as any)[f] = str(e[f]);
+        out.current = e.current === true || e.current === 'true';
+        return fixDates(out);
+      });
+  }
+  if (r.paper === 'LETTER') result.paper = 'LETTER';
+  return result;
+}
 const fields = ['title', 'organization', 'location', 'start', 'end', 'details'];
 export function parseResume(raw: unknown): Resume {
   if (!raw || typeof raw !== 'object') throw new Error('Choose a Folio JSON backup.');
@@ -125,10 +166,8 @@ export function parseResume(raw: unknown): Resume {
         throw new Error('Invalid entry.');
       const out = entry();
       for (const f of fields) (out as any)[f] = text(e[f]);
-      if (![out.start, out.end].every((d) => d === '' || /^\d{4}-(0[1-9]|1[0-2])$/.test(d)))
-        throw new Error('Invalid dates in backup.');
       out.current = e.current;
-      return out;
+      return fixDates(out);
     });
   }
   result.paper = r.paper;
@@ -139,11 +178,7 @@ export const lines = (s: string) =>
     .split(/\r?\n/)
     .map((l) => l.trim().replace(/^[-•]\s*/, ''))
     .filter(Boolean);
-export const month = (s: string) => {
-  if (!s) return '';
-  const [y, m] = s.split('-');
-  return `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][Number(m) - 1]} ${y}`;
-};
+export const month = formatDate;
 export const dates = (e: Entry) =>
   [month(e.start), e.current ? 'Present' : month(e.end)].filter(Boolean).join(' - ');
 export const nonempty = (e: Entry) =>

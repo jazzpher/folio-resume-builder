@@ -63,13 +63,11 @@ test('example, entry add/remove/reorder, JSON, PDF, DOCX and LaTeX downloads', a
 test('invalid import cannot overwrite current content', async ({ page }) => {
   await page.goto('/');
   await example(page);
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'bad.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from('{"version":9}'),
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'bad.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{"version":9}'),
+  });
   await expect(page.getByRole('alert')).toContainText('not supported');
   await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('Alex Rivera');
 });
@@ -84,13 +82,11 @@ test('valid import, cancel replacement, and reset confirmation', async ({ page }
   await page.getByRole('button', { name: 'Start fresh' }).click();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('');
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'valid.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(backup!),
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'valid.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(backup!),
+  });
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('Alex Rivera');
 });
@@ -118,4 +114,77 @@ test('small screen has no overflow and inputs use 16px text', async ({ page }) =
   ).toBe('16px');
   await preview(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('a saved draft with free-text dates is kept, not wiped', async ({ page }) => {
+  await page.goto('/');
+  await example(page);
+  await expect(page.getByRole('status').first()).toContainText('Saved on this browser');
+  await page.evaluate(() => {
+    const r = JSON.parse(localStorage.getItem('folio-resume-v1')!);
+    r.experience[0].start = 'Jan 2024';
+    r.experience[0].current = false;
+    r.experience[0].end = 'Present';
+    localStorage.setItem('folio-resume-v1', JSON.stringify(r));
+  });
+  await page.reload();
+  await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('Alex Rivera');
+  await page.getByRole('button', { name: /03.*Experience/ }).click();
+  await expect(page.getByLabel('Start date').first()).toHaveValue('Jan 2024');
+  await expect(page.getByLabel('I currently work here').first()).toBeChecked();
+  await preview(page);
+  await expect(page.getByText('January 2024 - Present')).toBeVisible();
+});
+
+test('unreadable saved data is stashed and can be downloaded or restored', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem(
+      'folio-resume-v1',
+      JSON.stringify({
+        version: 7,
+        contact: { name: 'Kept Person', email: 'kept@example.com' },
+        experience: [{ title: 'Kept Job', start: 'Jan 2024' }],
+      }),
+    );
+  });
+  await page.goto('/');
+  const banner = page.getByRole('alert').filter({ hasText: "couldn't open your saved resume" });
+  await expect(banner).toBeVisible();
+  await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('');
+  // Typing must not destroy the stashed copy.
+  await page.getByLabel('Full name', { exact: true }).fill('Someone Else');
+  await expect(page.getByRole('status').first()).toContainText('Saved on this browser');
+  const dl = page.waitForEvent('download');
+  await banner.getByRole('button', { name: 'Download recovered data' }).click();
+  const file = await dl;
+  const path = await file.path();
+  expect(fs.readFileSync(path!, 'utf8')).toContain('Kept Person');
+  await page.reload();
+  await expect(banner).toBeVisible();
+  await banner.getByRole('button', { name: 'Try to restore' }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('Kept Person');
+  await page.getByRole('button', { name: /03.*Experience/ }).click();
+  await expect(page.getByLabel('Job title').first()).toHaveValue('Kept Job');
+  await expect(page.getByLabel('Start date').first()).toHaveValue('Jan 2024');
+});
+
+test('date fields accept typed dates and flag ones they cannot read', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /03.*Experience/ }).click();
+  await page.getByRole('button', { name: '+ Add experience' }).click();
+  await page.getByLabel('Job title').fill('Analyst');
+  const start = page.getByLabel('Start date');
+  await start.fill('3/2022');
+  await start.blur();
+  await expect(start).toHaveValue('Mar 2022');
+  const end = page.getByLabel('End date');
+  await end.fill('Spring 2023');
+  await expect(end).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByText('Use a month and year')).toBeVisible();
+  await end.fill('present');
+  await end.blur();
+  await expect(page.getByLabel('I currently work here')).toBeChecked();
 });
