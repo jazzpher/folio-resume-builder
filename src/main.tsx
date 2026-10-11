@@ -83,8 +83,8 @@ function App() {
         );
         return;
       }
-      const lib = await import('./export');
-      await (format === 'PDF' ? lib.exportPdf : lib.exportDocx)(resume);
+      if (format === 'PDF') await (await import('./pdf')).exportPdf(resume);
+      else await (await import('./docx')).exportDocx(resume);
     });
   const requestReplace = (text: string, run: () => void) => setConfirm({ text, run });
   const checks = [
