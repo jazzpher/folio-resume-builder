@@ -1,0 +1,8 @@
+import {Document, Packer, Paragraph, TextRun} from 'docx';
+import type {Resume} from './model';
+import {blocks, filename} from './model';
+export {download} from './download';
+import {download} from './download';
+export function makeDocx(r:Resume){return new Document({creator:'Folio',title:`${r.contact.name} Resume`,styles:{default:{document:{run:{font:'Arial',size:22},paragraph:{spacing:{after:100}}}}},sections:[{properties:{page:{size:r.paper==='A4'?{width:11906,height:16838}:{width:12240,height:15840},margin:{top:1008,bottom:1008,left:1008,right:1008}}},children:blocks(r).map(b=>new Paragraph({keepNext:['heading','role','name','title'].includes(b.kind),spacing:{before:b.kind==='heading'?220:0,after:100},...(b.kind==='bullet'?{bullet:{level:0}}:{}),children:[new TextRun({text:b.text,bold:['name','heading','role'].includes(b.kind),size:b.kind==='name'?40:b.kind==='heading'?26:22})]}))}]});}
+export async function exportDocx(r:Resume){download(await Packer.toBlob(makeDocx(r)),`${filename(r)}.docx`);}
+export async function exportPdf(r:Resume){const [{default:pdfMake},{default:fonts}]=await Promise.all([import('pdfmake/build/pdfmake'),import('pdfmake/build/vfs_fonts')]);pdfMake.vfs=fonts;const content=blocks(r).map(b=>({text:b.kind==='bullet'?`• ${b.text}`:b.text,fontSize:b.kind==='name'?20:b.kind==='heading'?13:11,bold:['name','heading','role'].includes(b.kind),margin:[0,b.kind==='heading'?12:0,0,5] as [number,number,number,number],...(b.kind==='heading'?{headlineLevel:1}:{} )}));pdfMake.createPdf({pageSize:r.paper,pageMargins:[50,50,50,50],defaultStyle:{font:'Roboto',fontSize:11,lineHeight:1.18},content,pageBreakBefore:(node,following)=>node.headlineLevel===1&&following.length===0}).download(`${filename(r)}.pdf`);}
