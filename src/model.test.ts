@@ -59,3 +59,15 @@ describe('resume data', () => {
     expect(tex).toContain('Alex Rivera');
   });
 });
+
+describe('LaTeX lists', () => {
+  it('groups consecutive bullets into one itemize and guards against [', () => {
+    const r = sample();
+    r.experience[0].details = '[Lead] ran the team\nsecond\nthird';
+    const tex = makeTex(r);
+    expect(tex.match(/\\begin\{itemize\}/g)).toHaveLength(3); // two jobs + one project
+    expect(tex.match(/\\begin\{itemize\}/g)?.length).toBe(tex.match(/\\end\{itemize\}/g)?.length);
+    expect(tex).toContain('\\item{} [Lead] ran the team');
+    expect(tex).not.toMatch(/\\item [^{]/);
+  });
+});
