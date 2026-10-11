@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { createRequire } from 'node:module';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -22,4 +23,14 @@ function pdfFonts(): Plugin {
   };
 }
 
-export default defineConfig({ plugins: [react(), pdfFonts()], base: './' });
+export default defineConfig({
+  plugins: [react(), pdfFonts()],
+  base: './',
+  test: {
+    coverage: {
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.ts', 'src/main.tsx', 'src/virtual.d.ts'],
+      reporter: ['text', 'html'],
+    },
+  },
+});

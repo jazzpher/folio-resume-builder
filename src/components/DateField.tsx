@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { normalizeDate, shortDate } from '../dates';
 
 type Props = {
@@ -17,11 +17,10 @@ type Props = {
  */
 export function DateField({ label, value, onChange, onCurrent, error }: Props) {
   const id = useId();
-  const [text, setText] = useState(() => shortDate(value));
-  const [focused, setFocused] = useState(false);
-  useEffect(() => {
-    if (!focused) setText(shortDate(value));
-  }, [value, focused]);
+  // While focused the field shows what the user typed; otherwise the saved value.
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? shortDate(value);
+  const setText = (t: string) => setDraft(t);
   const parsed = normalizeDate(text);
   const message = !parsed.valid
     ? 'Use a month and year, like Jan 2024, or just a year.'
@@ -43,23 +42,22 @@ export function DateField({ label, value, onChange, onCurrent, error }: Props) {
         maxLength={40}
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? errorId : undefined}
-        onFocus={() => setFocused(true)}
+        onFocus={() => setDraft(shortDate(value))}
         onChange={(e) => {
           const next = e.target.value;
           setText(next);
           const p = normalizeDate(next);
-          if (p.current && onCurrent) return;
+          if (p.current) {
+            // "Present" only means something for an end date; elsewhere keep it as typed.
+            if (!onCurrent) onChange(next.trim());
+            return;
+          }
           onChange(p.valid ? p.value : next.trim());
         }}
         onBlur={() => {
-          setFocused(false);
+          setDraft(null);
           const p = normalizeDate(text);
-          if (p.current && onCurrent) {
-            onCurrent();
-            setText('');
-            return;
-          }
-          setText(shortDate(p.value));
+          if (p.current && onCurrent) onCurrent();
         }}
       />
       {invalid && (
