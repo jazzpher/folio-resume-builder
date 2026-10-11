@@ -27,6 +27,7 @@ export function Field({
   const errorId = error ? `${id}-error` : undefined;
   const describedBy = [errorId, hintId].filter(Boolean).join(' ') || undefined;
   const common = {
+    id,
     value,
     placeholder,
     maxLength: 20000,
@@ -34,8 +35,10 @@ export function Field({
     'aria-describedby': describedBy,
   } as const;
   return (
-    <label className={multiline ? 'field wide' : 'field'}>
-      <span>{label}</span>
+    <div className={multiline ? 'field wide' : 'field'}>
+      <label htmlFor={id} className="field-label">
+        {label}
+      </label>
       {multiline ? (
         <textarea {...common} rows={5} onChange={(e) => onChange(e.target.value)} />
       ) : (
@@ -47,6 +50,6 @@ export function Field({
         </small>
       )}
       {hint && <small id={hintId}>{hint}</small>}
-    </label>
+    </div>
   );
 }

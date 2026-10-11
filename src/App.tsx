@@ -9,7 +9,15 @@ import { SectionsEditor } from './components/SectionsEditor';
 import { RecoveryBanner } from './components/RecoveryBanner';
 import { Toolbar } from './components/Toolbar';
 import { download } from './download';
-import { blank, filename, parseResume, salvageResume, sample, type Resume } from './model';
+import {
+  blank,
+  filename,
+  parseResume,
+  salvageResume,
+  sample,
+  validEmail,
+  type Resume,
+} from './model';
 import { KEY, clearRecovery, loadDraft } from './storage';
 
 const STEPS = [
@@ -52,7 +60,15 @@ export function App() {
   const saveBlocked = useRef(loaded.saveBlocked);
   const [active, setActive] = useState('Contact');
   const [view, setView] = useState('edit');
-  const [status, setStatus] = useState('Ready to edit');
+  const [status, setVisibleStatus] = useState('Ready to edit');
+  // What screen readers hear. Autosave is announced only as "Saved…" after typing pauses.
+  const [announce, setAnnounce] = useState('');
+  const announceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const setStatus = (text: string, quiet = false) => {
+    setVisibleStatus(text);
+    clearTimeout(announceTimer.current);
+    if (!quiet) setAnnounce(text);
+  };
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -67,11 +83,12 @@ export function App() {
       setStatus('Not saved');
       return;
     }
-    setStatus('Saving on this browser…');
+    setStatus('Saving on this browser…', true);
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(KEY, JSON.stringify(resume));
-        setStatus('Saved on this browser');
+        setStatus('Saved on this browser', true);
+        announceTimer.current = setTimeout(() => setAnnounce('Saved on this browser'), 1500);
       } catch {
         setStatus('Not saved');
         setError(
@@ -188,9 +205,12 @@ export function App() {
           f<span>o</span>lio<span className="brand-dot">.</span>
         </a>
         <span className="header-tag">A clearer next chapter</span>
-        <span role="status" className="save-status">
+        <span className="save-status" aria-hidden="true">
           <span className="status-dot" />
           {status}
+        </span>
+        <span role="status" aria-live="polite" className="sr-only">
+          {announce}
         </span>
       </header>
       <main>
@@ -311,6 +331,11 @@ export function App() {
                       type="email"
                       value={resume.contact.email}
                       onChange={setContact('email')}
+                      error={
+                        validEmail(resume.contact.email)
+                          ? undefined
+                          : 'Check this email address, e.g. name@example.com.'
+                      }
                     />
                     <Field
                       label="Phone"

@@ -1,4 +1,4 @@
-import { entry, type Entry } from '../model';
+import { datesOutOfOrder, entry, type Entry } from '../model';
 import { DateField } from './DateField';
 import { Field } from './Field';
 
@@ -104,6 +104,7 @@ export function EntryList({ entries, labels, onChange, onRemove }: Props) {
                     value={e.end}
                     onChange={(v) => update(e.id, { end: v })}
                     onCurrent={() => update(e.id, { current: true, end: '' })}
+                    error={datesOutOfOrder(e) ? 'End date is before the start date.' : undefined}
                   />
                 )}
                 <label className="check">

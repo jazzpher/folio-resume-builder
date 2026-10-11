@@ -160,6 +160,18 @@ export function fixDates(e: Entry): Entry {
   if (end.current) e.current = true;
   return e;
 }
+const endKey = (s: string) => (s.length === 4 ? `${s}-12` : s);
+const startKey = (s: string) => (s.length === 4 ? `${s}-01` : s);
+/** True when an entry's end date is clearly before its start date. */
+export const datesOutOfOrder = (e: Entry) =>
+  !!e.start &&
+  !!e.end &&
+  !e.current &&
+  isCanonicalDate(e.start) &&
+  isCanonicalDate(e.end) &&
+  endKey(e.end) < startKey(e.start);
+export const validEmail = (s: string) =>
+  !s.trim() || /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(s.trim());
 /** Entries whose dates could not be understood (shown as typed). */
 export const badDates = (e: Entry) =>
   !isCanonicalDate(e.start) || (!e.current && !isCanonicalDate(e.end));

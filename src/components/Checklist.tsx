@@ -1,16 +1,4 @@
-import { isCanonicalDate } from '../dates';
-import type { Entry, Resume } from '../model';
-import { nonempty } from '../model';
-
-const endKey = (s: string) => (s.length === 4 ? `${s}-12` : s);
-const startKey = (s: string) => (s.length === 4 ? `${s}-01` : s);
-export const datesOutOfOrder = (e: Entry) =>
-  !!e.start &&
-  !!e.end &&
-  !e.current &&
-  isCanonicalDate(e.start) &&
-  isCanonicalDate(e.end) &&
-  endKey(e.end) < startKey(e.start);
+import { datesOutOfOrder, nonempty, type Resume } from '../model';
 
 export function Checklist({ resume }: { resume: Resume }) {
   const checks = [

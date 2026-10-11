@@ -7,13 +7,15 @@ type Props = {
   onChange: (value: string) => void;
   /** Called when the user types "Present" (or similar) into the field. */
   onCurrent?: () => void;
+  /** An extra validation message, e.g. "End date is before the start date." */
+  error?: string;
 };
 
 /**
  * A plain text date field that accepts "Jan 2024", "2024-01", "01/2024" or "2024".
  * Works the same in every browser, unlike <input type="month">.
  */
-export function DateField({ label, value, onChange, onCurrent }: Props) {
+export function DateField({ label, value, onChange, onCurrent, error }: Props) {
   const id = useId();
   const [text, setText] = useState(() => shortDate(value));
   const [focused, setFocused] = useState(false);
@@ -21,12 +23,18 @@ export function DateField({ label, value, onChange, onCurrent }: Props) {
     if (!focused) setText(shortDate(value));
   }, [value, focused]);
   const parsed = normalizeDate(text);
-  const invalid = !parsed.valid;
+  const message = !parsed.valid
+    ? 'Use a month and year, like Jan 2024, or just a year.'
+    : (error ?? '');
+  const invalid = !!message;
   const errorId = `${id}-error`;
   return (
-    <label className="field">
-      <span>{label}</span>
+    <div className="field">
+      <label htmlFor={id} className="field-label">
+        {label}
+      </label>
       <input
+        id={id}
         type="text"
         inputMode="text"
         autoComplete="off"
@@ -56,9 +64,9 @@ export function DateField({ label, value, onChange, onCurrent }: Props) {
       />
       {invalid && (
         <small id={errorId} className="field-error">
-          Use a month and year, like Jan 2024, or just a year.
+          {message}
         </small>
       )}
-    </label>
+    </div>
   );
 }

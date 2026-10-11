@@ -232,3 +232,41 @@ test('a version 1 draft migrates and extra sections reach the preview', async ({
   await expect(sheet.getByText('Cebuano', { exact: true })).toBeVisible();
   await expect(sheet.getByText('Kept summary')).toBeVisible();
 });
+
+test('confirm dialog is modal, closes with Escape and returns focus', async ({ page }) => {
+  await page.goto('/');
+  const opener = page.getByRole('button', { name: 'Load example' });
+  await opener.click();
+  const dialog = page.getByRole('dialog', { name: 'Just checking' });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+  await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('');
+});
+
+test('field errors are tied to their inputs', async ({ page }) => {
+  await page.goto('/');
+  const email = page.getByLabel('Email', { exact: true });
+  await email.fill('not-an-email');
+  await expect(email).toHaveAttribute('aria-invalid', 'true');
+  await expect(email).toHaveAccessibleDescription(/Check this email address/);
+  await email.fill('ok@example.com');
+  await expect(email).not.toHaveAttribute('aria-invalid', 'true');
+  await page.getByRole('button', { name: /03.*Experience/ }).click();
+  await page.getByRole('button', { name: '+ Add experience' }).click();
+  await page.getByLabel('Start date').fill('2024-05');
+  await page.getByLabel('End date').fill('2023-01');
+  await expect(page.getByLabel('End date')).toHaveAccessibleDescription(
+    'End date is before the start date.',
+  );
+});
+
+test('autosave is announced politely and only once typing pauses', async ({ page }) => {
+  await page.goto('/');
+  const live = page.locator('[role=status][aria-live=polite]');
+  await page.getByLabel('Full name', { exact: true }).pressSequentially('Ana', { delay: 50 });
+  await expect(live).not.toContainText('Saving');
+  await expect(live).toHaveText('Saved on this browser');
+});
