@@ -17,6 +17,21 @@ export function Preview({ resume }: { resume: Resume }) {
             <h3 key={i} className="r-heading">
               {b.text}
             </h3>
+          ) : b.parts ? (
+            <p key={i} className={`r-${b.kind}`}>
+              {b.parts.map((p, j) => (
+                <span key={j}>
+                  {j > 0 && ' | '}
+                  {p.href ? (
+                    <a href={p.href} target="_blank" rel="noopener noreferrer">
+                      {p.text}
+                    </a>
+                  ) : (
+                    p.text
+                  )}
+                </span>
+              ))}
+            </p>
           ) : (
             <p key={i} className={`r-${b.kind}`}>
               {b.kind === 'bullet' ? '• ' : ''}

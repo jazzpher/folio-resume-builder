@@ -257,17 +257,34 @@ export function parseResume(raw: unknown): Resume {
 export const lines = (s: string) =>
   s
     .split(/\r?\n/)
-    .map((l) => l.trim().replace(/^[-•]\s*/, ''))
+    .map((l) => l.trim().replace(/^[-•*–—]\s*/, ''))
     .filter(Boolean);
 export const month = formatDate;
 export const dates = (e: Entry) =>
   [month(e.start), e.current ? 'Present' : month(e.end)].filter(Boolean).join(' - ');
 export const nonempty = (e: Entry) =>
   !![e.title, e.organization, e.location, e.start, e.end, e.details].some((s) => s.trim());
+/** A piece of a contact line; `href` is set for emails, phone numbers and web addresses. */
+export type Part = { text: string; href?: string };
 export type Block = {
   text: string;
   kind: 'name' | 'title' | 'contact' | 'heading' | 'role' | 'meta' | 'body' | 'bullet';
+  /** Contact lines only: the line split into parts, with links. Joined by " | ". */
+  parts?: Part[];
 };
+/** A safe link target for an email, phone number or web address, or undefined. */
+export function hrefFor(value: string, kind: 'email' | 'phone' | 'url'): string | undefined {
+  const t = value.trim();
+  if (kind === 'email')
+    return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(t) ? `mailto:${t}` : undefined;
+  if (kind === 'phone') {
+    const digits = t.replace(/[^\d+]/g, '');
+    return /^\+?\d{6,15}$/.test(digits) ? `tel:${digits}` : undefined;
+  }
+  if (/^https?:\/\/[^\s<>"]+$/i.test(t)) return t;
+  if (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/[^\s<>"]*)?$/i.test(t)) return `https://${t}`;
+  return undefined;
+}
 export function blocks(r: Resume): Block[] {
   const b: Block[] = [];
   const add = (text: string, kind: Block['kind']) => {
@@ -275,11 +292,18 @@ export function blocks(r: Resume): Block[] {
   };
   add(r.contact.name, 'name');
   add(r.contact.title, 'title');
-  add(
-    [r.contact.email, r.contact.phone, r.contact.location].filter(Boolean).join(' | '),
-    'contact',
-  );
-  lines(r.contact.links).forEach((t) => add(t, 'contact'));
+  const parts: Part[] = [
+    { text: r.contact.email.trim(), href: hrefFor(r.contact.email, 'email') },
+    { text: r.contact.phone.trim(), href: hrefFor(r.contact.phone, 'phone') },
+    { text: r.contact.location.trim() },
+  ]
+    .filter((p) => p.text)
+    .map((p) => (p.href ? p : { text: p.text }));
+  if (parts.length) b.push({ text: parts.map((p) => p.text).join(' | '), kind: 'contact', parts });
+  lines(r.contact.links).forEach((t) => {
+    const href = hrefFor(t, 'url');
+    b.push({ text: t, kind: 'contact', parts: [href ? { text: t, href } : { text: t }] });
+  });
   if (r.summary.trim()) {
     add('Summary', 'heading');
     add(r.summary, 'body');
