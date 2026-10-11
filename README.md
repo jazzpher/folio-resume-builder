@@ -22,9 +22,10 @@ The on-screen preview shows content and layout, not exact export pagination. Alw
 ```sh
 npm ci
 npm run dev
-npm run test
-npx playwright install chromium
-npm run test:e2e
+npm run check          # format:check + lint + typecheck + unit tests
+npm run test:coverage
+npx playwright install chromium firefox webkit
+npm run test:e2e       # desktop + mobile Chromium, Firefox, WebKit
 npm run build
 ```
 
@@ -32,7 +33,7 @@ Node 22+. Vite uses relative asset paths for GitHub Pages project URLs. Document
 
 ## Deployment
 
-App changes go through a feature branch and PR. After approval and merge, the Pages workflow builds `dist` and publishes through GitHub Actions. Repository Settings > Pages > Build and deployment must use **GitHub Actions**. CI runs model tests, TypeScript, production build, and desktop/mobile browser tests.
+App changes go through a feature branch and PR. After approval and merge, `ci.yml` deploys `dist` to GitHub Pages, but only after formatting, lint, typecheck, unit tests, `npm audit`, the build and the e2e suite in Chromium (desktop + mobile), Firefox and WebKit have all passed. Repository Settings > Pages > Build and deployment must use **GitHub Actions**. Dependabot opens grouped weekly npm and monthly Actions updates.
 
 ## Design basis
 
