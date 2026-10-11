@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { normalizeDate, shortDate } from './dates';
+import { normalizeDate, shortDate } from '../dates';
 
 type Props = {
   label: string;
