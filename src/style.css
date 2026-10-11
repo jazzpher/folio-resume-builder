@@ -725,3 +725,20 @@ footer {
 [aria-invalid='true'] {
   border-color: #ac3535 !important;
 }
+.extra-section {
+  border-top: 1px solid #e6e5de;
+  padding-top: 16px;
+  margin-bottom: 24px;
+}
+.add-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0;
+}
+.add-section span {
+  font-size: 13px;
+  font-weight: 600;
+  width: 100%;
+}

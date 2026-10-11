@@ -75,7 +75,7 @@ test('valid import, cancel replacement, and reset confirmation', async ({ page }
   await page.goto('/');
   await example(page);
   await expect(page.getByRole('status').first()).toContainText('Saved on this browser');
-  const backup = await page.evaluate(() => localStorage.getItem('folio-resume-v1'));
+  const backup = await page.evaluate(() => localStorage.getItem('folio-resume-v2'));
   await page.getByRole('button', { name: 'Start fresh' }).click();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('Alex Rivera');
@@ -121,11 +121,11 @@ test('a saved draft with free-text dates is kept, not wiped', async ({ page }) =
   await example(page);
   await expect(page.getByRole('status').first()).toContainText('Saved on this browser');
   await page.evaluate(() => {
-    const r = JSON.parse(localStorage.getItem('folio-resume-v1')!);
+    const r = JSON.parse(localStorage.getItem('folio-resume-v2')!);
     r.experience[0].start = 'Jan 2024';
     r.experience[0].current = false;
     r.experience[0].end = 'Present';
-    localStorage.setItem('folio-resume-v1', JSON.stringify(r));
+    localStorage.setItem('folio-resume-v2', JSON.stringify(r));
   });
   await page.reload();
   await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('Alex Rivera');
@@ -141,7 +141,7 @@ test('unreadable saved data is stashed and can be downloaded or restored', async
     if (sessionStorage.getItem('seeded')) return;
     sessionStorage.setItem('seeded', '1');
     localStorage.setItem(
-      'folio-resume-v1',
+      'folio-resume-v2',
       JSON.stringify({
         version: 7,
         contact: { name: 'Kept Person', email: 'kept@example.com' },
@@ -187,4 +187,48 @@ test('date fields accept typed dates and flag ones they cannot read', async ({ p
   await end.fill('present');
   await end.blur();
   await expect(page.getByLabel('I currently work here')).toBeChecked();
+});
+
+test('a version 1 draft migrates and extra sections reach the preview', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem(
+      'folio-resume-v1',
+      JSON.stringify({
+        version: 1,
+        contact: {
+          name: 'Old Draft',
+          title: '',
+          email: 'old@example.com',
+          phone: '',
+          location: '',
+          links: '',
+        },
+        summary: 'Kept summary',
+        experience: [],
+        education: [],
+        skills: 'Excel',
+        certifications: '',
+        paper: 'A4',
+      }),
+    );
+  });
+  await page.goto('/');
+  await expect(page.getByLabel('Full name', { exact: true })).toHaveValue('Old Draft');
+  await page.getByRole('button', { name: /07.*More sections/ }).click();
+  await page.getByRole('button', { name: '+ Projects' }).click();
+  await page.getByLabel('Project name').fill('Inventory Dashboard');
+  await page.getByLabel('What you did').fill('Built a stock dashboard in Sheets');
+  await page.getByRole('button', { name: '+ Languages' }).click();
+  await page.getByLabel('Language', { exact: true }).fill('Cebuano');
+  await expect(page.getByRole('status').first()).toContainText('Saved on this browser');
+  await page.reload();
+  await preview(page);
+  const sheet = page.locator('.resume-sheet');
+  await expect(sheet.getByRole('heading', { name: 'Projects' })).toBeVisible();
+  await expect(sheet.getByText('Inventory Dashboard')).toBeVisible();
+  await expect(sheet.getByText('• Built a stock dashboard in Sheets')).toBeVisible();
+  await expect(sheet.getByText('Cebuano', { exact: true })).toBeVisible();
+  await expect(sheet.getByText('Kept summary')).toBeVisible();
 });

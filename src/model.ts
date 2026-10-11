@@ -9,8 +9,25 @@ export type Entry = {
   current: boolean;
   details: string;
 };
+export type SectionKind = 'projects' | 'languages' | 'awards' | 'volunteer' | 'custom';
+/** An extra resume section: a heading plus entries, rendered according to its kind. */
+export type Section = { id: string; kind: SectionKind; heading: string; entries: Entry[] };
+export const SECTION_KINDS: SectionKind[] = [
+  'projects',
+  'languages',
+  'awards',
+  'volunteer',
+  'custom',
+];
+export const DEFAULT_HEADINGS: Record<SectionKind, string> = {
+  projects: 'Projects',
+  languages: 'Languages',
+  awards: 'Awards',
+  volunteer: 'Volunteer Experience',
+  custom: 'Additional Information',
+};
 export type Resume = {
-  version: 1;
+  version: 2;
   contact: {
     name: string;
     title: string;
@@ -24,6 +41,8 @@ export type Resume = {
   education: Entry[];
   skills: string;
   certifications: string;
+  /** Extra sections, shown after Certifications in this order. Added in version 2. */
+  sections: Section[];
   paper: 'A4' | 'LETTER';
 };
 export const uid = () => crypto.randomUUID();
@@ -37,14 +56,21 @@ export const entry = (): Entry => ({
   current: false,
   details: '',
 });
+export const section = (kind: SectionKind): Section => ({
+  id: uid(),
+  kind,
+  heading: DEFAULT_HEADINGS[kind],
+  entries: [entry()],
+});
 export const blank = (): Resume => ({
-  version: 1,
+  version: 2,
   contact: { name: '', title: '', email: '', phone: '', location: '', links: '' },
   summary: '',
   experience: [],
   education: [],
   skills: '',
   certifications: '',
+  sections: [],
   paper: 'A4',
 });
 export const sample = (): Resume => ({
@@ -98,6 +124,32 @@ export const sample = (): Resume => ({
   skills:
     'Google Sheets, Microsoft Excel, Records Management, Data Cleaning, Report Writing, Scheduling',
   certifications: 'Google Project Management Certificate, Coursera, 2023',
+  sections: [
+    {
+      id: uid(),
+      kind: 'projects',
+      heading: 'Projects',
+      entries: [
+        {
+          ...entry(),
+          title: 'Request Tracker Automation',
+          organization: 'Personal project · Google Apps Script',
+          start: '2024-06',
+          details:
+            'Automated reminder emails for overdue requests, saving about two hours of follow-up each week.',
+        },
+      ],
+    },
+    {
+      id: uid(),
+      kind: 'languages',
+      heading: 'Languages',
+      entries: [
+        { ...entry(), title: 'Filipino', organization: 'Native' },
+        { ...entry(), title: 'English', organization: 'Professional' },
+      ],
+    },
+  ],
 });
 /** Normalise loose dates ("Jan 2024", "2024", "Present") in place. Unrecognised text is kept. */
 export function fixDates(e: Entry): Entry {
@@ -125,9 +177,8 @@ export function salvageResume(raw: unknown): Resume {
   for (const key of Object.keys(result.contact) as (keyof Resume['contact'])[])
     result.contact[key] = str(c[key]);
   for (const key of ['summary', 'skills', 'certifications'] as const) result[key] = str(r[key]);
-  for (const key of ['experience', 'education'] as const) {
-    const list = Array.isArray(r[key]) ? r[key].slice(0, 100) : [];
-    result[key] = list
+  const salvageEntries = (x: unknown) =>
+    (Array.isArray(x) ? x.slice(0, 100) : [])
       .filter((e: unknown) => e && typeof e === 'object')
       .map((e: any) => {
         const out = entry();
@@ -135,41 +186,71 @@ export function salvageResume(raw: unknown): Resume {
         out.current = e.current === true || e.current === 'true';
         return fixDates(out);
       });
-  }
+  for (const key of ['experience', 'education'] as const) result[key] = salvageEntries(r[key]);
+  result.sections = (Array.isArray(r.sections) ? r.sections.slice(0, 30) : [])
+    .filter((x: any) => x && typeof x === 'object')
+    .map((x: any) => {
+      const kind: SectionKind = SECTION_KINDS.includes(x.kind) ? x.kind : 'custom';
+      return {
+        id: uid(),
+        kind,
+        heading: str(x.heading) || DEFAULT_HEADINGS[kind],
+        entries: salvageEntries(x.entries),
+      };
+    });
   if (r.paper === 'LETTER') result.paper = 'LETTER';
   return result;
 }
 const fields = ['title', 'organization', 'location', 'start', 'end', 'details'];
+const MAX_TEXT = 20000;
+function parseEntry(e: any, text: (x: unknown) => string): Entry {
+  if (!e || typeof e !== 'object' || typeof e.current !== 'boolean')
+    throw new Error('Invalid entry.');
+  const out = entry();
+  for (const f of fields) (out as any)[f] = text(e[f]);
+  out.current = e.current;
+  return fixDates(out);
+}
+/**
+ * Validate a saved draft or JSON backup (version 1 or 2) and return a clean version 2 resume.
+ * Version 1 data has no extra sections and migrates without loss.
+ */
 export function parseResume(raw: unknown): Resume {
   if (!raw || typeof raw !== 'object') throw new Error('Choose a Folio JSON backup.');
   const r = raw as Record<string, any>;
   if (
-    r.version !== 1 ||
+    (r.version !== 1 && r.version !== 2) ||
     !r.contact ||
     typeof r.contact !== 'object' ||
     !['A4', 'LETTER'].includes(r.paper)
   )
     throw new Error('This backup format is not supported.');
   const text = (x: unknown) => {
-    if (typeof x !== 'string' || x.length > 20000)
+    if (typeof x !== 'string' || x.length > MAX_TEXT)
       throw new Error('The backup contains invalid or very long text.');
+    return x;
+  };
+  const list = (x: unknown, max = 100) => {
+    if (!Array.isArray(x) || x.length > max) throw new Error('Invalid resume entries.');
     return x;
   };
   const result = blank();
   for (const key of Object.keys(result.contact) as (keyof Resume['contact'])[])
     result.contact[key] = text(r.contact[key]);
   for (const key of ['summary', 'skills', 'certifications'] as const) result[key] = text(r[key]);
-  for (const key of ['experience', 'education'] as const) {
-    if (!Array.isArray(r[key]) || r[key].length > 100) throw new Error('Invalid resume entries.');
-    result[key] = r[key].map((e: any) => {
-      if (!e || typeof e !== 'object' || typeof e.current !== 'boolean')
-        throw new Error('Invalid entry.');
-      const out = entry();
-      for (const f of fields) (out as any)[f] = text(e[f]);
-      out.current = e.current;
-      return fixDates(out);
+  for (const key of ['experience', 'education'] as const)
+    result[key] = list(r[key]).map((e) => parseEntry(e, text));
+  if (r.version === 2)
+    result.sections = list(r.sections, 30).map((x: any) => {
+      if (!x || typeof x !== 'object' || !SECTION_KINDS.includes(x.kind))
+        throw new Error('Invalid resume section.');
+      return {
+        id: uid(),
+        kind: x.kind,
+        heading: text(x.heading),
+        entries: list(x.entries).map((e) => parseEntry(e, text)),
+      };
     });
-  }
   result.paper = r.paper;
   return result;
 }
@@ -221,6 +302,29 @@ export function blocks(r: Resume): Block[] {
   if (r.certifications.trim()) {
     add('Certifications', 'heading');
     lines(r.certifications).forEach((t) => add(t, 'body'));
+  }
+  for (const s of r.sections) {
+    const entries = s.entries.filter(nonempty);
+    if (!entries.length) continue;
+    add(s.heading.trim() || DEFAULT_HEADINGS[s.kind], 'heading');
+    if (s.kind === 'languages') {
+      add(
+        entries
+          .map((e) =>
+            e.organization.trim() ? `${e.title.trim()} (${e.organization.trim()})` : e.title.trim(),
+          )
+          .filter(Boolean)
+          .join(', '),
+        'body',
+      );
+      continue;
+    }
+    entries.forEach((e) => {
+      add(e.title, 'role');
+      const when = s.kind === 'awards' ? formatDate(e.start) : dates(e);
+      add([e.organization, e.location, when].filter(Boolean).join(' | '), 'meta');
+      lines(e.details).forEach((t) => add(t, s.kind === 'awards' ? 'body' : 'bullet'));
+    });
   }
   return b;
 }

@@ -1,6 +1,8 @@
 import { blank, parseResume, type Resume } from './model';
 
-export const KEY = 'folio-resume-v1';
+export const KEY = 'folio-resume-v2';
+/** Version 1 drafts. Read once for migration and never written or deleted. */
+export const LEGACY_KEY = 'folio-resume-v1';
 export const RECOVERY_KEY = 'folio-resume-recovery';
 
 export type Loaded = { resume: Resume; recovery: string | null; saveBlocked: boolean };
@@ -13,7 +15,7 @@ export type Loaded = { resume: Resume; recovery: string | null; saveBlocked: boo
 export function loadDraft(storage: Storage = localStorage): Loaded {
   let saved: string | null = null;
   try {
-    saved = storage.getItem(KEY);
+    saved = storage.getItem(KEY) ?? storage.getItem(LEGACY_KEY);
   } catch {
     return { resume: blank(), recovery: null, saveBlocked: false };
   }

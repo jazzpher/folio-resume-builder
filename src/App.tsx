@@ -5,13 +5,22 @@ import { DownloadBar, type Format } from './components/DownloadBar';
 import { EntryList, type EntryLabels } from './components/EntryList';
 import { Field } from './components/Field';
 import { Preview } from './components/Preview';
+import { SectionsEditor } from './components/SectionsEditor';
 import { RecoveryBanner } from './components/RecoveryBanner';
 import { Toolbar } from './components/Toolbar';
 import { download } from './download';
 import { blank, filename, parseResume, salvageResume, sample, type Resume } from './model';
 import { KEY, clearRecovery, loadDraft } from './storage';
 
-const STEPS = ['Contact', 'Summary', 'Experience', 'Education', 'Skills', 'Certifications'];
+const STEPS = [
+  'Contact',
+  'Summary',
+  'Experience',
+  'Education',
+  'Skills',
+  'Certifications',
+  'More sections',
+];
 
 const EXPERIENCE: EntryLabels = {
   item: 'Position',
@@ -154,6 +163,21 @@ export function App() {
       setStatus('Entry removed');
     });
 
+  const removeSection = (s: { id: string }) =>
+    requestReplace('Remove this section and everything in it? This cannot be undone.', () => {
+      setResume((r) => ({ ...r, sections: r.sections.filter((x) => x.id !== s.id) }));
+      setStatus('Section removed');
+    });
+  const removeSectionEntry = (s: { id: string }, e: { id: string }) =>
+    requestReplace('Remove this entry? This cannot be undone.', () => {
+      setResume((r) => ({
+        ...r,
+        sections: r.sections.map((x) =>
+          x.id === s.id ? { ...x, entries: x.entries.filter((y) => y.id !== e.id) } : x,
+        ),
+      }));
+      setStatus('Entry removed');
+    });
   const stepIndex = STEPS.indexOf(active);
   const last = stepIndex === STEPS.length - 1;
 
@@ -368,6 +392,14 @@ export function App() {
                     hint="One certification per line."
                   />
                 </>
+              )}
+              {active === 'More sections' && (
+                <SectionsEditor
+                  sections={resume.sections}
+                  onChange={(next) => change('sections', next)}
+                  onRemoveSection={removeSection}
+                  onRemoveEntry={removeSectionEntry}
+                />
               )}
               <div className="form-footer">
                 <button disabled={stepIndex === 0} onClick={() => setActive(STEPS[stepIndex - 1])}>

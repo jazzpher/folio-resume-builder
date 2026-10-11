@@ -29,7 +29,15 @@ describe('resume data', () => {
       blocks(sample())
         .filter((b) => b.kind === 'heading')
         .map((b) => b.text),
-    ).toEqual(['Summary', 'Experience', 'Education', 'Skills', 'Certifications']);
+    ).toEqual([
+      'Summary',
+      'Experience',
+      'Education',
+      'Skills',
+      'Certifications',
+      'Projects',
+      'Languages',
+    ]);
     expect(blocks(blank())).toEqual([]);
   });
   it('formats month dates and current work', () =>
